@@ -4,6 +4,15 @@
 	"description": "Interactive multiple-choice questions with a free-form fallback for Pi",
 	"type": "module",
 	"license": "MIT",
+	"author": "inv1x <pavlik.vlad.i@gmail.com>",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Inv1x/pi-ask-user.git"
+	},
+	"homepage": "https://github.com/Inv1x/pi-ask-user#readme",
+	"bugs": {
+		"url": "https://github.com/Inv1x/pi-ask-user/issues"
+	},
 	"keywords": [
 		"pi-package",
 		"pi-coding-agent",
@@ -14,6 +23,7 @@
 	"files": [
 		"src",
 		"README.md",
+		"CHANGELOG.md",
 		"LICENSE"
 	],
 	"exports": {
@@ -30,21 +40,30 @@
 		"typebox": "*"
 	},
 	"scripts": {
+		"format": "biome format --write .",
+		"format:check": "biome format .",
 		"check": "biome check .",
 		"check:fix": "biome check --write .",
 		"typecheck": "tsc --noEmit",
-		"test": "node --import jiti/register --test test/*.test.ts"
+		"test": "node --import jiti/register --test test/*.test.ts",
+		"quality": "npm run check && npm run typecheck && npm test",
+		"prepack": "npm run quality"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.5",
-		"@earendil-works/pi-coding-agent": "0.81.1",
-		"@earendil-works/pi-tui": "0.81.1",
+		"@earendil-works/pi-coding-agent": "0.84.1",
+		"@earendil-works/pi-tui": "0.84.1",
 		"@types/node": "^26.1.1",
 		"jiti": "^2.7.0",
-		"typebox": "^1.3.6",
+		"typebox": "1.3.7",
 		"typescript": "^7.0.2"
 	},
 	"engines": {
 		"node": ">=22.19.0"
+	},
+	"packageManager": "npm@11.16.0",
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
 	}
 }
