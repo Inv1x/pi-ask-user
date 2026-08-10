@@ -104,11 +104,11 @@ function startInteractive(
 			theme: unknown,
 			injectedKeybindings: KeybindingsManager,
 			done: (result: unknown) => void,
-		) => TestComponent,
+		) => TestComponent | Promise<TestComponent>,
 	): Promise<unknown> =>
 		new Promise((resolve) => {
-			component = factory(
-				{ requestRender() {} },
+			const created = factory(
+				{ hasOverlay: () => false, requestRender() {} },
 				options.theme ?? identityTheme,
 				options.keybindings ?? keybindings(),
 				(result) => {
@@ -117,6 +117,11 @@ function startInteractive(
 					resolve(result);
 				},
 			);
+			if (created instanceof Promise)
+				void created.then((value) => {
+					component = value;
+				});
+			else component = created;
 		});
 	const execution = tool.execute("call-1", input, options.signal, undefined, {
 		mode: "tui",
@@ -243,6 +248,57 @@ test("tool handles unavailable or already-aborted UI", async () => {
 	);
 	assert.equal(textOf(aborted), "Cancelled");
 	assert.equal(detailsOf(aborted).answer, null);
+});
+
+test("ask_user waits for an active overlay to close before taking input", async () => {
+	const tool = registeredTool();
+	let overlayOpen = true;
+	let component: TestComponent | undefined;
+	const execution = tool.execute(
+		"call-overlay",
+		{
+			question: "Choose after closing the inspector",
+			options: [{ label: "First" }, { label: "Second" }],
+		},
+		undefined,
+		undefined,
+		{
+			mode: "tui",
+			ui: {
+				custom: (
+					factory: (
+						tui: { hasOverlay(): boolean; requestRender(): void },
+						theme: typeof identityTheme,
+						injectedKeybindings: KeybindingsManager,
+						done: (result: unknown) => void,
+					) => TestComponent | Promise<TestComponent>,
+				) =>
+					new Promise((resolve) => {
+						const created = factory(
+							{
+								hasOverlay: () => overlayOpen,
+								requestRender() {},
+							},
+							identityTheme,
+							keybindings(),
+							resolve,
+						);
+						void Promise.resolve(created).then((value) => {
+							component = value as TestComponent;
+						});
+					}),
+			},
+		} as unknown as ExtensionContext,
+	);
+
+	await new Promise((resolve) => setTimeout(resolve, 60));
+	assert.equal(component, undefined, "the overlay keeps input ownership");
+	overlayOpen = false;
+	await new Promise((resolve) => setTimeout(resolve, 60));
+	const mounted = component as TestComponent | undefined;
+	assert.ok(mounted, "the question mounts after the overlay closes");
+	mounted.handleInput?.("1");
+	assert.equal(textOf(await execution), "User selected option 1: First");
 });
 
 test("runtime validation rejects invalid bounds and sanitized blank text", async () => {

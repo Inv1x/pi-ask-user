@@ -9,6 +9,7 @@ A standalone [`ask_user`](https://github.com/earendil-works/pi) tool for Pi. It 
 - Uses Pi's configured `tui.select.up`, `tui.select.down`, `tui.select.confirm`, and `tui.select.cancel` keybindings. Number keys remain direct-selection shortcuts.
 - Opens an inline editor for a custom answer. Blank submissions and the configured cancel key return to the options; nonblank answers are trimmed and submitted.
 - Runs tool calls sequentially so multiple questions cannot open competing interactive views.
+- Defers the question while a fleet, terminal inspector, or other overlay is open, leaving that topmost window in control until it closes.
 - Treats an aborted tool signal as cancellation and removes its listener whenever the view settles or is disposed.
 - Wraps ANSI-styled text by terminal display width, including CJK and emoji, and safely rerenders when the TUI width changes (including fullscreen mode).
 - Removes terminal escape sequences, unsafe control characters, and bidirectional overrides from model-provided display text.

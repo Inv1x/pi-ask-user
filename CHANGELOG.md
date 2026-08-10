@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Defer `ask_user` while a TUI overlay is open so the topmost fleet or terminal inspector keeps keyboard focus until it closes.
 - Made nested option descriptions required-but-nullable so Codex/OpenAI strict tool-schema validation accepts `ask_user`.
 
 ### Changed
