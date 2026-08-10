@@ -52,6 +52,10 @@ npm pack --dry-run
 
 `npm pack` runs the same check, typecheck, and test quality gate automatically through `prepack`.
 
+## Versioning
+
+Run `npm run changeset` for each user-facing change and commit the generated `.changeset/*.md` file. To prepare a release, run `npm run release:status` and then `npm run release:version`; Changesets consumes the pending files and updates `package.json`, `package-lock.json`, and `CHANGELOG.md`. These commands do not publish to npm or create a GitHub Release.
+
 ## Credits
 
 Behavior and UI are based on the [`ask-user`](https://github.com/davis7dotsh/my-pi-setup/tree/main/extensions/ask-user) extension from `davis7dotsh/my-pi-setup`.
