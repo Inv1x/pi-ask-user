@@ -32,6 +32,8 @@ const MAX_OPTIONS = 5;
 const OptionSchema = Type.Object(
 	{
 		label: Type.String({
+			minLength: 1,
+			pattern: "\\S",
 			description: ASK_USER_PARAMETER_DESCRIPTIONS.optionLabel,
 		}),
 		description: Type.Optional(
@@ -46,6 +48,8 @@ const OptionSchema = Type.Object(
 const AskUserParams = Type.Object(
 	{
 		question: Type.String({
+			minLength: 1,
+			pattern: "\\S",
 			description: ASK_USER_PARAMETER_DESCRIPTIONS.question,
 		}),
 		options: Type.Array(OptionSchema, {
@@ -63,6 +67,7 @@ interface AskUserDetails {
 	question: string;
 	options: string[];
 	answer: string | null;
+	selectedIndex: number | null;
 	wasCustom: boolean;
 	cancelled: boolean;
 }
@@ -117,29 +122,6 @@ export default function askUser(pi: ExtensionAPI): void {
 		executionMode: "sequential",
 
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-			const question = sanitizeText(params.question, true);
-			const options = params.options.map((option) => ({
-				label: sanitizeText(option.label),
-				description:
-					typeof option.description === "string"
-						? sanitizeText(option.description)
-						: undefined,
-			}));
-			const reply = (
-				text: string,
-				answer: string | null = null,
-				wasCustom = false,
-			) => ({
-				content: [{ type: "text" as const, text }],
-				details: {
-					question,
-					options: options.map((option) => option.label),
-					answer,
-					wasCustom,
-					cancelled: answer === null,
-				} satisfies AskUserDetails,
-			});
-
 			if (
 				params.options.length < MIN_OPTIONS ||
 				params.options.length > MAX_OPTIONS
@@ -148,6 +130,55 @@ export default function askUser(pi: ExtensionAPI): void {
 					`ask_user requires between ${MIN_OPTIONS} and ${MAX_OPTIONS} options (got ${params.options.length}). Retry with a valid number of options.`,
 				);
 			}
+
+			const question = sanitizeText(params.question, true).trim();
+			if (!question) {
+				throw new Error(
+					"ask_user question must be nonblank after sanitization. Retry with a valid question.",
+				);
+			}
+
+			const options = params.options.map((option, index) => {
+				const label = sanitizeText(option.label).trim();
+				if (!label) {
+					throw new Error(
+						`ask_user option ${index + 1} label must be nonblank after sanitization. Retry with valid option labels.`,
+					);
+				}
+				return {
+					label,
+					description:
+						typeof option.description === "string"
+							? sanitizeText(option.description)
+							: undefined,
+				};
+			});
+			const labels = new Set<string>();
+			for (const option of options) {
+				if (labels.has(option.label)) {
+					throw new Error(
+						`ask_user option labels must be unique after sanitization (duplicate: ${JSON.stringify(option.label)}). Retry with distinct option labels.`,
+					);
+				}
+				labels.add(option.label);
+			}
+
+			const reply = (
+				text: string,
+				answer: string | null = null,
+				wasCustom = false,
+				selectedIndex: number | null = null,
+			) => ({
+				content: [{ type: "text" as const, text }],
+				details: {
+					question,
+					options: options.map((option) => option.label),
+					answer,
+					selectedIndex,
+					wasCustom,
+					cancelled: answer === null,
+				} satisfies AskUserDetails,
+			});
 
 			if (ctx.mode !== "tui") {
 				return reply(buildAskUserResultMessage({ kind: "no-ui" }));
@@ -418,6 +449,8 @@ export default function askUser(pi: ExtensionAPI): void {
 					index: result.index,
 				}),
 				result.answer,
+				false,
+				result.index ?? null,
 			);
 		},
 
@@ -465,9 +498,11 @@ export default function askUser(pi: ExtensionAPI): void {
 				);
 			}
 
-			const index = details.options.indexOf(details.answer) + 1;
 			const safeAnswer = sanitizeText(details.answer, true);
-			const display = index > 0 ? `${index}. ${safeAnswer}` : safeAnswer;
+			const display =
+				typeof details.selectedIndex === "number"
+					? `${details.selectedIndex}. ${safeAnswer}`
+					: safeAnswer;
 			return new Text(
 				theme.fg("success", "✓ ") + theme.fg("accent", display),
 				0,

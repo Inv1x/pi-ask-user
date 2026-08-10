@@ -4,7 +4,7 @@ A standalone [`ask_user`](https://github.com/earendil-works/pi) tool for Pi. It 
 
 ## Behavior
 
-- Accepts exactly 2–5 model-provided options, each with a label and optional description.
+- Accepts exactly 2–5 model-provided options, each with a nonblank, unique effective label and optional description. Questions must also remain nonblank after display-text sanitization.
 - Appends **Write my own answer…** automatically.
 - Uses Pi's configured `tui.select.up`, `tui.select.down`, `tui.select.confirm`, and `tui.select.cancel` keybindings. Number keys remain direct-selection shortcuts.
 - Opens an inline editor for a custom answer. Blank submissions and the configured cancel key return to the options; nonblank answers are trimmed and submitted.
@@ -14,7 +14,7 @@ A standalone [`ask_user`](https://github.com/earendil-works/pi) tool for Pi. It 
 - Removes terminal escape sequences, unsafe control characters, and bidirectional overrides from model-provided display text.
 - Requests strict JSON Schema constrained sampling when the active model supports it, while falling back normally on models that do not.
 - In non-TUI modes, tells the model that no interactive UI is available and to ask in plain text.
-- Returns structured details containing the question, option labels, answer, whether it was custom, and whether the interaction was cancelled or dismissed.
+- Returns structured details containing the question, option labels, answer, selected option index, whether it was custom, and whether the interaction was cancelled or dismissed.
 
 The tool prompt encourages Pi to use `ask_user` for enumerable choices and to ask only one question per call.
 

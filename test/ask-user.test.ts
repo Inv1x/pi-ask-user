@@ -21,6 +21,7 @@ interface ResultDetails {
 	question: string;
 	options: string[];
 	answer: string | null;
+	selectedIndex: number | null;
 	wasCustom: boolean;
 	cancelled: boolean;
 }
@@ -152,17 +153,33 @@ test("tool metadata exposes a strict-preferred bounded schema", () => {
 	const schema = tool.parameters as {
 		additionalProperties?: boolean;
 		properties?: {
+			question?: { minLength?: number; pattern?: string };
 			options?: {
 				minItems?: number;
 				maxItems?: number;
-				items?: { additionalProperties?: boolean };
+				items?: {
+					additionalProperties?: boolean;
+					properties?: {
+						label?: { minLength?: number; pattern?: string };
+					};
+				};
 			};
 		};
 	};
 	assert.equal(schema.additionalProperties, false);
+	assert.equal(schema.properties?.question?.minLength, 1);
+	assert.equal(schema.properties?.question?.pattern, "\\S");
 	assert.equal(schema.properties?.options?.minItems, 2);
 	assert.equal(schema.properties?.options?.maxItems, 5);
 	assert.equal(schema.properties?.options?.items?.additionalProperties, false);
+	assert.equal(
+		schema.properties?.options?.items?.properties?.label?.minLength,
+		1,
+	);
+	assert.equal(
+		schema.properties?.options?.items?.properties?.label?.pattern,
+		"\\S",
+	);
 });
 
 test("tool handles unavailable or already-aborted UI", async () => {
@@ -190,17 +207,55 @@ test("tool handles unavailable or already-aborted UI", async () => {
 	assert.equal(detailsOf(aborted).answer, null);
 });
 
-test("runtime option bounds reject malformed calls", async () => {
+test("runtime validation rejects invalid bounds and sanitized blank text", async () => {
 	const tool = registeredTool();
+	const execute = (input: AskUserInput) =>
+		tool.execute("call-1", input, undefined, undefined, {
+			mode: "print",
+		} as ExtensionContext);
+
 	await assert.rejects(
+		execute({ question: "Too few", options: [{ label: "Only" }] }),
+		/requires between 2 and 5 options \(got 1\)/,
+	);
+	for (const question of [" \t\n ", "\u0007\u001b[2J\u202e"]) {
+		await assert.rejects(
+			execute({
+				question,
+				options: [{ label: "First" }, { label: "Second" }],
+			}),
+			/question must be nonblank after sanitization/,
+		);
+	}
+	for (const label of [" \t\n ", "\u0007\u001b[2J\u202e"]) {
+		await assert.rejects(
+			execute({
+				question: "Choose one",
+				options: [{ label }, { label: "Second" }],
+			}),
+			/option 1 label must be nonblank after sanitization/,
+		);
+	}
+});
+
+test("runtime validation rejects duplicate effective labels", async () => {
+	const tool = registeredTool();
+	const execute = (options: AskUserInput["options"]) =>
 		tool.execute(
 			"call-1",
-			{ question: "Too few", options: [{ label: "Only" }] },
+			{ question: "Choose one", options },
 			undefined,
 			undefined,
 			{ mode: "print" } as ExtensionContext,
-		),
-		/requires between 2 and 5 options \(got 1\)/,
+		);
+
+	await assert.rejects(
+		execute([{ label: "Same" }, { label: " Same " }]),
+		/labels must be unique after sanitization.*Same/,
+	);
+	await assert.rejects(
+		execute([{ label: "Same" }, { label: "\u001b[31mSame\u001b[0m" }]),
+		/labels must be unique after sanitization.*Same/,
 	);
 });
 
@@ -218,9 +273,46 @@ test("numeric shortcuts return the chosen label and index", async () => {
 		question: "Choose one",
 		options: ["First", "Second"],
 		answer: "Second",
+		selectedIndex: 2,
 		wasCustom: false,
 		cancelled: false,
 	});
+});
+
+test("custom and blank custom answers preserve free-form behavior", async () => {
+	const tool = registeredTool();
+	const custom = startInteractive(tool, {
+		question: "Choose one",
+		options: [{ label: "First" }, { label: "Second" }],
+	});
+	custom.component.handleInput?.("3");
+	custom.component.handleInput?.("Something else");
+	custom.component.handleInput?.("\r");
+	const customResult = await custom.execution;
+	assert.equal(
+		textOf(customResult),
+		"User wrote their own answer: Something else",
+	);
+	assert.deepEqual(detailsOf(customResult), {
+		question: "Choose one",
+		options: ["First", "Second"],
+		answer: "Something else",
+		selectedIndex: null,
+		wasCustom: true,
+		cancelled: false,
+	});
+
+	const blank = startInteractive(tool, {
+		question: "Choose one",
+		options: [{ label: "First" }, { label: "Second" }],
+	});
+	blank.component.handleInput?.("3");
+	blank.component.handleInput?.("   ");
+	blank.component.handleInput?.("\r");
+	blank.component.handleInput?.("2");
+	const blankResult = await blank.execution;
+	assert.equal(textOf(blankResult), "User selected option 2: Second");
+	assert.equal(detailsOf(blankResult).selectedIndex, 2);
 });
 
 test("selection actions honor injected remapped keybindings", async () => {
