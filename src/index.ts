@@ -36,11 +36,9 @@ const OptionSchema = Type.Object(
 			pattern: "\\S",
 			description: ASK_USER_PARAMETER_DESCRIPTIONS.optionLabel,
 		}),
-		description: Type.Optional(
-			Type.String({
-				description: ASK_USER_PARAMETER_DESCRIPTIONS.optionDescription,
-			}),
-		),
+		description: Type.Union([Type.String(), Type.Null()], {
+			description: ASK_USER_PARAMETER_DESCRIPTIONS.optionDescription,
+		}),
 	},
 	{ additionalProperties: false },
 );
@@ -62,6 +60,22 @@ const AskUserParams = Type.Object(
 );
 
 export type AskUserInput = Static<typeof AskUserParams>;
+
+function prepareAskUserArguments(args: unknown): AskUserInput {
+	if (!args || typeof args !== "object" || Array.isArray(args)) {
+		return args as AskUserInput;
+	}
+	const input = args as Record<string, unknown>;
+	if (!Array.isArray(input.options)) return args as AskUserInput;
+	return {
+		...input,
+		options: input.options.map((option) =>
+			option && typeof option === "object" && !Array.isArray(option)
+				? { description: null, ...option }
+				: option,
+		),
+	} as AskUserInput;
+}
 
 interface AskUserDetails {
 	question: string;
@@ -118,6 +132,7 @@ export default function askUser(pi: ExtensionAPI): void {
 		promptSnippet: ASK_USER_PROMPT_SNIPPET,
 		promptGuidelines: ASK_USER_PROMPT_GUIDELINES,
 		parameters: AskUserParams,
+		prepareArguments: prepareAskUserArguments,
 		constrainedSampling: { type: "json_schema", strict: "prefer" },
 		executionMode: "sequential",
 

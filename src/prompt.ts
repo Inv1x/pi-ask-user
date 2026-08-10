@@ -1,7 +1,8 @@
 /** Model-facing schema descriptions for the ask_user question and answer options. */
 export const ASK_USER_PARAMETER_DESCRIPTIONS = {
 	optionLabel: "Short display label for this option",
-	optionDescription: "Optional one-line description shown below the label",
+	optionDescription:
+		"One-line description shown below the label, or null when no description is needed",
 	question: "The question to ask the user",
 	options:
 		"Between 2 and 5 answer options. A free-form 'write my own answer' option is always appended automatically - never include one yourself.",

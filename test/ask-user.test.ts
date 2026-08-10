@@ -28,6 +28,14 @@ interface ResultDetails {
 
 type ToolResult = AgentToolResult<unknown>;
 
+type AskUserInvocation = Omit<AskUserInput, "options"> & {
+	options: Array<
+		Omit<AskUserInput["options"][number], "description"> & {
+			description?: string | null;
+		}
+	>;
+};
+
 type TestComponent = Component & { dispose?: () => void };
 
 type RegisteredTool = {
@@ -37,11 +45,12 @@ type RegisteredTool = {
 	promptSnippet?: string;
 	promptGuidelines?: string[];
 	parameters: unknown;
+	prepareArguments?: (args: unknown) => AskUserInput;
 	constrainedSampling?: unknown;
 	executionMode?: string;
 	execute(
 		toolCallId: string,
-		params: AskUserInput,
+		params: AskUserInvocation,
 		signal: AbortSignal | undefined,
 		onUpdate: undefined,
 		ctx: ExtensionContext,
@@ -80,7 +89,7 @@ function keybindings(userBindings: KeybindingsConfig = {}): KeybindingsManager {
 
 function startInteractive(
 	tool: RegisteredTool,
-	input: AskUserInput,
+	input: AskUserInvocation,
 	options: {
 		signal?: AbortSignal;
 		keybindings?: KeybindingsManager;
@@ -149,9 +158,23 @@ test("tool metadata exposes a strict-preferred bounded schema", () => {
 		type: "json_schema",
 		strict: "prefer",
 	});
+	assert.deepEqual(
+		tool.prepareArguments?.({
+			question: "Choose one",
+			options: [{ label: "First" }, { label: "Second", description: "Two" }],
+		}),
+		{
+			question: "Choose one",
+			options: [
+				{ label: "First", description: null },
+				{ label: "Second", description: "Two" },
+			],
+		},
+	);
 
 	const schema = tool.parameters as {
 		additionalProperties?: boolean;
+		required?: string[];
 		properties?: {
 			question?: { minLength?: number; pattern?: string };
 			options?: {
@@ -159,19 +182,34 @@ test("tool metadata exposes a strict-preferred bounded schema", () => {
 				maxItems?: number;
 				items?: {
 					additionalProperties?: boolean;
+					required?: string[];
 					properties?: {
 						label?: { minLength?: number; pattern?: string };
+						description?: {
+							anyOf?: Array<{ type?: string }>;
+						};
 					};
 				};
 			};
 		};
 	};
 	assert.equal(schema.additionalProperties, false);
+	assert.deepEqual(schema.required, ["question", "options"]);
 	assert.equal(schema.properties?.question?.minLength, 1);
 	assert.equal(schema.properties?.question?.pattern, "\\S");
 	assert.equal(schema.properties?.options?.minItems, 2);
 	assert.equal(schema.properties?.options?.maxItems, 5);
 	assert.equal(schema.properties?.options?.items?.additionalProperties, false);
+	assert.deepEqual(schema.properties?.options?.items?.required, [
+		"label",
+		"description",
+	]);
+	assert.deepEqual(
+		schema.properties?.options?.items?.properties?.description?.anyOf?.map(
+			(branch) => branch.type,
+		),
+		["string", "null"],
+	);
 	assert.equal(
 		schema.properties?.options?.items?.properties?.label?.minLength,
 		1,
@@ -184,7 +222,7 @@ test("tool metadata exposes a strict-preferred bounded schema", () => {
 
 test("tool handles unavailable or already-aborted UI", async () => {
 	const tool = registeredTool();
-	const input: AskUserInput = {
+	const input: AskUserInvocation = {
 		question: "Choose one",
 		options: [{ label: "First" }, { label: "Second" }],
 	};
@@ -209,7 +247,7 @@ test("tool handles unavailable or already-aborted UI", async () => {
 
 test("runtime validation rejects invalid bounds and sanitized blank text", async () => {
 	const tool = registeredTool();
-	const execute = (input: AskUserInput) =>
+	const execute = (input: AskUserInvocation) =>
 		tool.execute("call-1", input, undefined, undefined, {
 			mode: "print",
 		} as ExtensionContext);
@@ -240,7 +278,7 @@ test("runtime validation rejects invalid bounds and sanitized blank text", async
 
 test("runtime validation rejects duplicate effective labels", async () => {
 	const tool = registeredTool();
-	const execute = (options: AskUserInput["options"]) =>
+	const execute = (options: AskUserInvocation["options"]) =>
 		tool.execute(
 			"call-1",
 			{ question: "Choose one", options },

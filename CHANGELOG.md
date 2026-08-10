@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Made nested option descriptions required-but-nullable so Codex/OpenAI strict tool-schema validation accepts `ask_user`.
+
 ### Changed
 
 - Updated the tested Pi and TUI development baseline to 0.84.1 and TypeBox to 1.3.7.
