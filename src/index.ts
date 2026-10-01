@@ -104,14 +104,18 @@ function prepareAskUserArguments(args: unknown): AskUserInput {
 	} as AskUserInput;
 }
 
-interface AskUserDetails {
+type AskUserDetails = {
 	question: string;
-	options: string[];
+	options: Array<{
+		label: string;
+		description: string | null;
+	}>;
 	answer: string | null;
 	selectedIndex: number | null;
 	wasCustom: boolean;
 	cancelled: boolean;
-}
+	dismissal: "user" | "aborted" | "no-ui" | null;
+};
 
 type SelectionResult =
 	| {
@@ -152,7 +156,7 @@ function sanitizeText(text: string, multiline = false): string {
 }
 
 export default function askUser(pi: ExtensionAPI): void {
-	pi.registerTool({
+	pi.registerTool<typeof AskUserParams, AskUserDetails>({
 		name: "ask_user",
 		label: "Ask User",
 		description: ASK_USER_TOOL_DESCRIPTION,
@@ -210,24 +214,41 @@ export default function askUser(pi: ExtensionAPI): void {
 				answer: string | null = null,
 				wasCustom = false,
 				selectedIndex: number | null = null,
+				dismissal: AskUserDetails["dismissal"] = null,
 			) => ({
 				content: [{ type: "text" as const, text }],
 				details: {
 					question,
-					options: options.map((option) => option.label),
+					options: options.map((option) => ({
+						label: option.label,
+						description: option.description ?? null,
+					})),
 					answer,
 					selectedIndex,
 					wasCustom,
 					cancelled: answer === null,
+					dismissal,
 				} satisfies AskUserDetails,
 			});
 
 			if (ctx.mode !== "tui") {
-				return reply(buildAskUserResultMessage({ kind: "no-ui" }));
+				return reply(
+					buildAskUserResultMessage({ kind: "no-ui" }),
+					null,
+					false,
+					null,
+					"no-ui",
+				);
 			}
 
 			if (signal?.aborted) {
-				return reply(buildAskUserResultMessage({ kind: "cancelled" }));
+				return reply(
+					buildAskUserResultMessage({ kind: "cancelled" }),
+					null,
+					false,
+					null,
+					"aborted",
+				);
 			}
 
 			const allOptions: DisplayOption[] = [
@@ -475,11 +496,23 @@ export default function askUser(pi: ExtensionAPI): void {
 			);
 
 			if (result.kind === "cancelled") {
-				return reply(buildAskUserResultMessage({ kind: "cancelled" }));
+				return reply(
+					buildAskUserResultMessage({ kind: "cancelled" }),
+					null,
+					false,
+					null,
+					"aborted",
+				);
 			}
 
 			if (result.kind === "dismissed") {
-				return reply(buildAskUserResultMessage({ kind: "dismissed" }));
+				return reply(
+					buildAskUserResultMessage({ kind: "dismissed" }),
+					null,
+					false,
+					null,
+					"user",
+				);
 			}
 
 			if (result.wasCustom) {

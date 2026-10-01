@@ -19,11 +19,12 @@ import { buildAskUserResultMessage } from "../src/prompt.ts";
 
 interface ResultDetails {
 	question: string;
-	options: string[];
+	options: Array<{ label: string; description: string | null }>;
 	answer: string | null;
 	selectedIndex: number | null;
 	wasCustom: boolean;
 	cancelled: boolean;
+	dismissal: "user" | "aborted" | "no-ui" | null;
 }
 
 type ToolResult = AgentToolResult<unknown>;
@@ -81,6 +82,10 @@ function textOf(result: ToolResult): string {
 
 function detailsOf(result: ToolResult): ResultDetails {
 	return result.details as ResultDetails;
+}
+
+function assertJsonRoundTrip(details: ResultDetails): void {
+	assert.deepEqual(JSON.parse(JSON.stringify(details)), details);
 }
 
 function keybindings(userBindings: KeybindingsConfig = {}): KeybindingsManager {
@@ -236,6 +241,7 @@ test("tool handles unavailable or already-aborted UI", async () => {
 	} as ExtensionContext);
 	assert.match(textOf(noUi), /No interactive UI/);
 	assert.equal(detailsOf(noUi).cancelled, true);
+	assert.equal(detailsOf(noUi).dismissal, "no-ui");
 
 	const controller = new AbortController();
 	controller.abort();
@@ -248,6 +254,7 @@ test("tool handles unavailable or already-aborted UI", async () => {
 	);
 	assert.equal(textOf(aborted), "Cancelled");
 	assert.equal(detailsOf(aborted).answer, null);
+	assert.equal(detailsOf(aborted).dismissal, "aborted");
 });
 
 test("ask_user waits for an active overlay to close before taking input", async () => {
@@ -357,7 +364,10 @@ test("numeric shortcuts return the chosen label and index", async () => {
 	const tool = registeredTool();
 	const { component, execution } = startInteractive(tool, {
 		question: "Choose one",
-		options: [{ label: "First" }, { label: "Second" }],
+		options: [
+			{ label: "First", description: "The primary choice" },
+			{ label: "Second" },
+		],
 	});
 	component.handleInput?.("2");
 
@@ -365,12 +375,17 @@ test("numeric shortcuts return the chosen label and index", async () => {
 	assert.equal(textOf(result), "User selected option 2: Second");
 	assert.deepEqual(detailsOf(result), {
 		question: "Choose one",
-		options: ["First", "Second"],
+		options: [
+			{ label: "First", description: "The primary choice" },
+			{ label: "Second", description: null },
+		],
 		answer: "Second",
 		selectedIndex: 2,
 		wasCustom: false,
 		cancelled: false,
+		dismissal: null,
 	});
+	assertJsonRoundTrip(detailsOf(result));
 });
 
 test("custom and blank custom answers preserve free-form behavior", async () => {
@@ -389,12 +404,17 @@ test("custom and blank custom answers preserve free-form behavior", async () => 
 	);
 	assert.deepEqual(detailsOf(customResult), {
 		question: "Choose one",
-		options: ["First", "Second"],
+		options: [
+			{ label: "First", description: null },
+			{ label: "Second", description: null },
+		],
 		answer: "Something else",
 		selectedIndex: null,
 		wasCustom: true,
 		cancelled: false,
+		dismissal: null,
 	});
+	assertJsonRoundTrip(detailsOf(customResult));
 
 	const blank = startInteractive(tool, {
 		question: "Choose one",
@@ -443,7 +463,21 @@ test("selection actions honor injected remapped keybindings", async () => {
 		{ keybindings: remapped },
 	);
 	dismissed.component.handleInput?.("h");
-	assert.match(textOf(await dismissed.execution), /dismissed/);
+	const dismissedResult = await dismissed.execution;
+	assert.match(textOf(dismissedResult), /dismissed/);
+	assert.deepEqual(detailsOf(dismissedResult), {
+		question: "Choose one",
+		options: [
+			{ label: "First", description: null },
+			{ label: "Second", description: null },
+		],
+		answer: null,
+		selectedIndex: null,
+		wasCustom: false,
+		cancelled: true,
+		dismissal: "user",
+	});
+	assertJsonRoundTrip(detailsOf(dismissedResult));
 });
 
 test("Unicode, CJK, ANSI styling, and width changes render safely", () => {
@@ -500,7 +534,10 @@ test("unsafe model-provided terminal and direction controls are sanitized", asyn
 	assert.equal(detailsOf(result).answer, "Sec ond");
 	const detailsText = [
 		detailsOf(result).question,
-		...detailsOf(result).options,
+		...detailsOf(result).options.flatMap((option) => [
+			option.label,
+			option.description ?? "",
+		]),
 		detailsOf(result).answer ?? "",
 	].join("\n");
 	for (const control of ["\u001b", "\u0007", "\u202e"]) {
@@ -531,6 +568,7 @@ test("active cancellation settles once and removes its listener", async () => {
 	const result = await started.execution;
 	assert.equal(textOf(result), "Cancelled");
 	assert.equal(detailsOf(result).cancelled, true);
+	assert.equal(detailsOf(result).dismissal, "aborted");
 	assert.equal(doneCalls, 1);
 	assert.equal(getEventListeners(controller.signal, "abort").length, 0);
 	started.component.handleInput?.("1");

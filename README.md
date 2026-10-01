@@ -15,7 +15,7 @@ A standalone [`ask_user`](https://github.com/earendil-works/pi) tool for Pi. It 
 - Removes terminal escape sequences, unsafe control characters, and bidirectional overrides from model-provided display text.
 - Requests strict JSON Schema constrained sampling when the active model supports it, while falling back normally on models that do not.
 - In non-TUI modes, tells the model that no interactive UI is available and to ask in plain text.
-- Returns structured details containing the question, option labels, answer, selected option index, whether it was custom, and whether the interaction was cancelled or dismissed.
+- Returns JSON-safe details containing the question, options as `{ label, description }` records (`description` is `null` when omitted), answer, selected option index, custom-answer flag, and explicit dismissal reason (`user`, `aborted`, `no-ui`, or `null`).
 
 The tool prompt encourages Pi to use `ask_user` for enumerable choices and to ask only one question per call.
 
@@ -38,7 +38,13 @@ Use `pi -e .` only for a temporary development smoke test. You can also add the 
 
 ## Compatibility
 
-The current release is developed and tested against Pi **0.84.1** (the tested minimum) and Node.js 22.19 or newer. Pi-bundled runtime modules (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, and `typebox`) remain unbundled peer dependencies so the extension uses the host Pi runtime.
+The current release requires Pi **0.87.1** or newer and Node.js 22.19 or newer. Development dependencies are pinned to Pi 0.87.1. Pi-bundled runtime modules (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, and `typebox`) remain unbundled peer dependencies so the extension uses the host Pi runtime.
+
+## Prompt lifecycle and caching
+
+Pi automatically emits `ui_prompt_start` and `ui_prompt_end` around the complete custom interaction, including time waiting for another overlay to close. Hosts can distinguish user wait time from model work; this extension does not emit duplicate events. Answering, dismissal, cancellation, and UI errors all end the prompt.
+
+Pi's default `cacheWarming: "streaming"` can keep eligible prompt caches warm during a long user wait. Eligibility depends on model cache-lifetime metadata and Pi's cost estimate; refresh calls incur usage. This extension does not force warming or change your settings.
 
 ## Development
 

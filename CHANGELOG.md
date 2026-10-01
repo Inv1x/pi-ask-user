@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0
+
+### Minor Changes
+
+- Require Pi 0.87.1, test custom-prompt lifecycle events through ExtensionRunner, and return JSON-safe option descriptions and explicit dismissal reasons. Structured result `options` now contains `{ label, description }` records rather than label strings. Document automatic prompt lifecycle events and eligible cache warming during user waits.
+
+### Patch Changes
+
+- 8858c10: Defer questions while a TUI overlay is open so the topmost inspector keeps keyboard focus.
+- 4f13f61: Adopt Changesets for version and changelog management.
+
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
