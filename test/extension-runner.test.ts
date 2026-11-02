@@ -133,7 +133,7 @@ async function createHarness(
 				},
 				signal,
 				undefined,
-				runner.createContext(),
+				runner.createToolContext("call-runner", signal),
 			);
 		},
 	};

@@ -38,7 +38,7 @@ Use `pi -e .` only for a temporary development smoke test. You can also add the 
 
 ## Compatibility
 
-The current release requires Pi **0.87.1** or newer and Node.js 22.19 or newer. Development dependencies are pinned to Pi 0.87.1. Pi-bundled runtime modules (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, and `typebox`) remain unbundled peer dependencies so the extension uses the host Pi runtime.
+The current release requires Pi **1.4.0** or newer and Node.js 22.19 or newer. Development dependencies and the lockfile pin Pi 1.4.0, including its fix for concurrent extension dialogs leaving promises unresolved. Pi-bundled runtime modules (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, and `typebox`) remain unbundled peer dependencies so the extension uses the host Pi runtime.
 
 ## Prompt lifecycle and caching
 
