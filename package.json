@@ -1,6 +1,6 @@
 {
 	"name": "@inv1x/pi-ask-user",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "Interactive multiple-choice questions with a free-form fallback for Pi",
 	"type": "module",
 	"license": "MIT",
